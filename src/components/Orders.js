@@ -32,8 +32,8 @@ function Orders() {
   const sharedClasses = useSharedStyles();
   const [orders, setOrders] = useState([]);
   const [open, setOpen] = useState(false);
-  const [productId, setProductId] = useState('');  // Removed userId state
-  const [quantity, setQuantity] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [selectedQuantity, setSelectedQuantity] = useState('');
   const [orderDate, setOrderDate] = useState(new Date());
   const [products, setProducts] = useState([]);
 
@@ -153,27 +153,53 @@ function Orders() {
   const handleClose = () => {
     setOpen(false);
     // Reset form fields when closing
-    setProductId('');
-    setQuantity('');
+    setSelectedProductId('');
+    setSelectedQuantity('');
   };
 
-  const handleCreateOrder = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const newOrder = { 
-      productId, 
-      quantity: parseInt(quantity, 10),
-      orderDate: orderDate.toISOString(),
-      status: 'Pending'
-    };
+    
+    const selectedProduct = products.find(p => p._id === selectedProductId);
+    if (!selectedProduct) {
+      toast.error('Please select a product');
+      return;
+    }
 
-    axiosInstance.post('/api/orders/create', newOrder)
-      .then(res => {
-        setOrders([...orders, res.data]);
-        handleClose();
-      })
-      .catch(err => {
-        console.error(err);
+    // Get remaining stock calculation
+    const remainingStock = calculateRemainingStock(selectedProductId, selectedProduct.stock);
+    
+    // Validate stock before making API call
+    if (remainingStock <= 0) {
+      toast.error('Product is out of stock');
+      return;
+    }
+
+    if (selectedQuantity > remainingStock) {
+      toast.error(`Insufficient stock. Only ${remainingStock} units available`);
+      return;
+    }
+
+    try {
+      const response = await axiosInstance.post('/api/orders/create', {
+        productId: selectedProductId,
+        quantity: parseInt(selectedQuantity)
       });
+      
+      setOrders([...orders, response.data]);
+      handleClose();
+      toast.success('Order created successfully');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Error creating order');
+    }
+  };
+
+  // Add the stock calculation function (same as in Products component)
+  const calculateRemainingStock = (productId, totalStock) => {
+    const orderedQuantity = orders
+      .filter(order => order.productId === productId && order.status !== 'Cancelled')
+      .reduce((sum, order) => sum + order.quantity, 0);
+    return totalStock - orderedQuantity;
   };
 
   return (
@@ -224,65 +250,80 @@ function Orders() {
         </Table>
       </TableContainer>
 
-      <Dialog 
+      <OrderDialog 
         open={open} 
-        onClose={handleClose}
-        maxWidth="xs" // Controls the maximum width of the dialog
-        fullWidth={false} // Prevents the dialog from taking full width
-      >
-        <DialogTitle>Create New Order</DialogTitle>
-        <DialogContent className={sharedClasses.dialogContent}>
-          <form onSubmit={handleCreateOrder} className={sharedClasses.form}>
-            <FormControl fullWidth margin="dense">
-              <InputLabel>Product</InputLabel>
-              <Select
-                value={productId}
-                onChange={(e) => setProductId(e.target.value)}
-              >
-                {products.map((product) => (
-                  <MenuItem key={product._id} value={product._id}>
-                    {product.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              className={sharedClasses.textField}
-              label="Quantity"
-              type="number"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              variant="outlined"
-              size="small"
-              required
-              InputProps={{ inputProps: { min: 1 } }}
-            />
-            <DateTimePicker
-              label="Order Date"
-              inputVariant="outlined"
-              value={orderDate}
-              onChange={setOrderDate}
-              size="small"
-              className={sharedClasses.textField}
-              format="yyyy/MM/dd HH:mm"
-            />
-          </form>
-        </DialogContent>
-        <DialogActions className={sharedClasses.dialogActions}>
-          <Button onClick={handleClose} color="secondary">
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleCreateOrder} 
-            color="primary" 
-            variant="contained"
-          >
-            Create Order
-          </Button>
-        </DialogActions>
-      </Dialog>
+        handleClose={handleClose}
+        products={products}
+        orders={orders}
+        selectedProductId={selectedProductId}
+        setSelectedProductId={setSelectedProductId}
+        selectedQuantity={selectedQuantity}
+        setSelectedQuantity={setSelectedQuantity}
+        handleSubmit={handleSubmit}
+        calculateRemainingStock={calculateRemainingStock}
+      />
     </div>
   );
 }
+
+const OrderDialog = ({ 
+  open, 
+  handleClose, 
+  products, 
+  orders,
+  selectedProductId,
+  setSelectedProductId,
+  selectedQuantity,
+  setSelectedQuantity,
+  handleSubmit,
+  calculateRemainingStock 
+}) => {
+  const selectedProduct = products.find(p => p._id === selectedProductId);
+  const remainingStock = selectedProduct 
+    ? calculateRemainingStock(selectedProductId, selectedProduct.stock)
+    : 0;
+
+  return (
+    <Dialog open={open} onClose={handleClose}>
+      <DialogTitle>Create New Order</DialogTitle>
+      <DialogContent>
+        <FormControl fullWidth margin="normal">
+          <InputLabel>Product</InputLabel>
+          <Select
+            value={selectedProductId}
+            onChange={(e) => setSelectedProductId(e.target.value)}
+          >
+            {products.map((product) => (
+              <MenuItem key={product._id} value={product._id}>
+                {product.name} (Available: {calculateRemainingStock(product._id, product.stock)})
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <TextField
+          margin="normal"
+          label={`Quantity (Max: ${remainingStock})`}
+          type="number"
+          fullWidth
+          value={selectedQuantity}
+          onChange={(e) => setSelectedQuantity(e.target.value)}
+          inputProps={{ 
+            min: 1, 
+            max: remainingStock 
+          }}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleClose}>Cancel</Button>
+        <Button 
+          onClick={handleSubmit}
+          disabled={!selectedProductId || !selectedQuantity || selectedQuantity > remainingStock}
+        >
+          Create Order
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
 
 export default Orders;

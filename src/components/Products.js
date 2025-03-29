@@ -19,6 +19,7 @@ import {
 } from '@material-ui/core';
 import AddIcon from '@material-ui/icons/Add';
 import { useSharedStyles } from '../styles/shared';
+import { toast } from 'react-toastify';
 
 function Products() {
   const sharedClasses = useSharedStyles();
@@ -32,55 +33,44 @@ function Products() {
     stock: ''
   });
 
-  useEffect(() => {
-    // Fetch both products and orders
-    const fetchData = async () => {
-      try {
-        const [productsRes, ordersRes] = await Promise.all([
-          axiosInstance.get('/api/products'),
-          axiosInstance.get('/api/orders/orders')
-        ]);
-        setProducts(productsRes.data);
-        setOrders(ordersRes.data);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-    
-    fetchData();
-  }, []);
-
-  // Calculate remaining stock for each product
-  const calculateRemainingStock = (productId, totalStock) => {
-    const orderedQuantity = orders
-      .filter(order => order.productId === productId && order.status !== 'Cancelled')
-      .reduce((sum, order) => sum + order.quantity, 0);
-    return totalStock - orderedQuantity;
-  };
-
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => {
-    setOpen(false);
-    setNewProduct({ name: '', description: '', price: '', stock: '' });
-  };
-
-  const handleChange = (e) => {
-    setNewProduct({
-      ...newProduct,
-      [e.target.name]: e.target.value
-    });
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axiosInstance.post('/api/products', newProduct);
+      const response = await axiosInstance.post('/api/products', {
+        name: newProduct.name,
+        description: newProduct.description,
+        price: parseFloat(newProduct.price),
+        stock: parseInt(newProduct.stock)
+      });
+      
+      // Add the new product to the existing products list
+      setProducts(prevProducts => [...prevProducts, response.data]);
+      
       handleClose();
-      fetchProducts();
+      toast.success('Product added successfully');
     } catch (error) {
-      console.error('Error creating product:', error);
+      toast.error(error.response?.data?.error || 'Error adding product');
     }
   };
+
+  // Separate function for fetching products data
+  const fetchData = async () => {
+    try {
+      const [productsRes, ordersRes] = await Promise.all([
+        axiosInstance.get('/api/products'),
+        axiosInstance.get('/api/orders/orders')
+      ]);
+      setProducts(productsRes.data);
+      setOrders(ordersRes.data);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error('Error fetching data');
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   return (
     <div>
@@ -139,54 +129,62 @@ function Products() {
       </TableContainer>
 
       <Dialog open={open} onClose={handleClose}>
-        <DialogTitle>Add New Product</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            name="name"
-            label="Product Name"
-            type="text"
-            fullWidth
-            value={newProduct.name}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="dense"
-            name="description"
-            label="Description"
-            type="text"
-            fullWidth
-            value={newProduct.description}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="dense"
-            name="price"
-            label="Price"
-            type="number"
-            fullWidth
-            value={newProduct.price}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="dense"
-            name="stock"
-            label="Stock"
-            type="number"
-            fullWidth
-            value={newProduct.stock}
-            onChange={handleChange}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose} color="primary">
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} color="primary">
-            Add
-          </Button>
-        </DialogActions>
+        <form onSubmit={handleSubmit}>
+          <DialogTitle>Add New Product</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              name="name"
+              label="Product Name"
+              type="text"
+              fullWidth
+              value={newProduct.name}
+              onChange={handleChange}
+              required
+            />
+            <TextField
+              margin="dense"
+              name="description"
+              label="Description"
+              type="text"
+              fullWidth
+              value={newProduct.description}
+              onChange={handleChange}
+            />
+            <TextField
+              margin="dense"
+              name="price"
+              label="Price"
+              type="number"
+              fullWidth
+              value={newProduct.price}
+              onChange={handleChange}
+              required
+              inputProps={{ min: "0", step: "0.01" }}
+            />
+            <TextField
+              margin="dense"
+              name="stock"
+              label="Stock"
+              type="number"
+              fullWidth
+              value={newProduct.stock}
+              onChange={handleChange}
+              required
+              inputProps={{ min: "0", step: "1" }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleClose}>Cancel</Button>
+            <Button 
+              type="submit"
+              disabled={!newProduct.name || !newProduct.price || !newProduct.stock}
+            >
+              Add Product
+            </Button>
+          </DialogActions>
+        </form>
       </Dialog>
     </div>
   );
