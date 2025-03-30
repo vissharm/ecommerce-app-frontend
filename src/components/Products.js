@@ -33,6 +33,33 @@ function Products() {
     stock: ''
   });
 
+  // Add the stock calculation function
+  const calculateRemainingStock = (productId, totalStock) => {
+    const orderedQuantity = orders
+      .filter(order => order.productId === productId && order.status !== 'Cancelled')
+      .reduce((sum, order) => sum + order.quantity, 0);
+    return totalStock - orderedQuantity;
+  };
+
+  const handleOpen = () => setOpen(true);
+  const handleClose = () => {
+    setOpen(false);
+    setNewProduct({
+      name: '',
+      description: '',
+      price: '',
+      stock: ''
+    });
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setNewProduct(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {

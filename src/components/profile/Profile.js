@@ -9,7 +9,7 @@ import {
   makeStyles
 } from '@material-ui/core';
 import axiosInstance from '../../utils/axiosConfig';
-import { getAuthData } from '../../utils/secureStorage';
+import { getAuthData, setAuthData } from '../../utils/secureStorage';
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -100,6 +100,17 @@ const Profile = () => {
         setOriginalProfile(response.data);
         setIsEditing(false);
         setError('');
+        
+        // Update the auth data with new user information
+        const currentAuthData = getAuthData();
+        setAuthData({
+          ...currentAuthData,
+          user: {
+            ...currentAuthData.user,
+            name: response.data.name,
+            email: response.data.email
+          }
+        });
       }
     } catch (err) {
       console.error('Update error:', err);
@@ -215,11 +226,3 @@ const Profile = () => {
 };
 
 export default Profile;
-
-
-
-
-
-
-
-
