@@ -2,7 +2,13 @@ import { io } from 'socket.io-client';
 import { getAuthData } from './utils/secureStorage';
 const { token } = getAuthData();
 
-const socket = io('http://localhost:3000', {
+const getBaseURL = () => {
+  const { protocol, hostname, port } = window.location;
+  const basePort = port ? `:${port}` : '';
+  return `${protocol}//${hostname}${basePort}`;
+};
+
+const socket = io(getBaseURL(), {
   transports: ['websocket'],
   upgrade: false,
   reconnection: true,

@@ -1,8 +1,15 @@
 import axios from 'axios';
 import { getAuthData, clearAuthData } from './secureStorage';
 
+// Always use the same origin where the app is hosted
+const getBaseURL = () => {
+  const { protocol, hostname, port } = window.location;
+  const basePort = port ? `:${port}` : '';
+  return `${protocol}//${hostname}${basePort}`;
+};
+
 const axiosInstance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || ''
+  baseURL: getBaseURL()
 });
 
 // Add request interceptor
